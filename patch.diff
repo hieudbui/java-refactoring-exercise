@@ -1,0 +1,2163 @@
+From aa05ea3b75ad34615b204c08cf138168bda4ca5c Mon Sep 17 00:00:00 2001
+From: Hieu Bui <hbui@gravie.com>
+Date: Tue, 23 Feb 2016 14:27:56 -0700
+Subject: [PATCH] first commit
+
+---
+ pom.xml                                            | 206 +++++++++++++++++----
+ .../h2rd/refactoring/ApplicationConfiguration.java |  21 +++
+ .../com/h2rd/refactoring/usermanagement/User.java  |  65 ++++++-
+ .../h2rd/refactoring/usermanagement/UserDao.java   |  71 -------
+ .../usermanagement/dao/MemoryBackedUserDao.java    |  68 +++++++
+ .../refactoring/usermanagement/dao/UserDao.java    |  22 +++
+ .../com/h2rd/refactoring/web/MyApplication.java    |  14 ++
+ .../com/h2rd/refactoring/web/UserResource.java     | 107 -----------
+ .../h2rd/refactoring/web/rest/UserResource.java    |  86 +++++++++
+ .../h2rd/refactoring/web/rest/UserResourceV2.java  | 154 +++++++++++++++
+ src/main/resources/application-config.xml          |  10 -
+ src/main/resources/logback.xml                     |  50 +++++
+ src/main/webapp/WEB-INF/web.xml                    |  46 +++--
+ .../integration/UserIntegrationTest.java           |   2 +-
+ .../unit/MemoryBackedUserDaoUnitTest.java          | 132 +++++++++++++
+ .../com/h2rd/refactoring/unit/UserDaoUnitTest.java |  39 ----
+ .../refactoring/unit/UserResourceUnitTest.java     |  50 +++--
+ .../refactoring/unit/UserResourceV2UnitTest.java   |  50 +++++
+ 18 files changed, 888 insertions(+), 305 deletions(-)
+ create mode 100644 src/main/java/com/h2rd/refactoring/ApplicationConfiguration.java
+ delete mode 100644 src/main/java/com/h2rd/refactoring/usermanagement/UserDao.java
+ create mode 100644 src/main/java/com/h2rd/refactoring/usermanagement/dao/MemoryBackedUserDao.java
+ create mode 100644 src/main/java/com/h2rd/refactoring/usermanagement/dao/UserDao.java
+ create mode 100644 src/main/java/com/h2rd/refactoring/web/MyApplication.java
+ delete mode 100644 src/main/java/com/h2rd/refactoring/web/UserResource.java
+ create mode 100644 src/main/java/com/h2rd/refactoring/web/rest/UserResource.java
+ create mode 100644 src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+ delete mode 100644 src/main/resources/application-config.xml
+ create mode 100644 src/main/resources/logback.xml
+ create mode 100644 src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
+ delete mode 100644 src/test/java/test/com/h2rd/refactoring/unit/UserDaoUnitTest.java
+ create mode 100644 src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+
+diff --git a/pom.xml b/pom.xml
+index 91fa35e..378a92b 100755
+--- a/pom.xml
++++ b/pom.xml
+@@ -2,46 +2,170 @@
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+ 
+-	<modelVersion>4.0.0</modelVersion>
+-	<groupId>com.h2rd</groupId>
+-	<artifactId>java-refactoring-exercise</artifactId>
+-	<packaging>war</packaging>
+-	<version>0.0.1-SNAPSHOT</version>
+-
+-	<name>Java Refactoring Exercise</name>
+-	<description>Java Refactoring Exercise</description>
+-
+-    <dependencies>
+-        <dependency>
+-            <groupId>junit</groupId>
+-            <artifactId>junit</artifactId>
+-            <version>4.8.2</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>javax.servlet</groupId>
+-            <artifactId>jstl</artifactId>
+-            <version>1.2</version>
+-        </dependency>
+-        <dependency>
+-	        <groupId>javax.servlet</groupId>
+-	        <artifactId>servlet-api</artifactId>
+-	        <version>2.5</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>com.sun.jersey</groupId>
+-            <artifactId>jersey-server</artifactId>
+-            <version>1.8</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework</groupId>
+-            <artifactId>spring-context</artifactId>
+-            <version>3.1.2.RELEASE</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.springframework</groupId>
+-            <artifactId>spring-core</artifactId>
+-            <version>3.1.2.RELEASE</version>
+-        </dependency>
+-    </dependencies>
++  <modelVersion>4.0.0</modelVersion>
++  <groupId>com.h2rd</groupId>
++  <artifactId>java-refactoring-exercise</artifactId>
++  <packaging>war</packaging>
++  <version>0.0.1-SNAPSHOT</version>
+ 
++  <name>Java Refactoring Exercise</name>
++  <description>Java Refactoring Exercise</description>
++
++  <properties>
++    <spring.version>3.1.2.RELEASE</spring.version>
++    <logback.version>1.1.1</logback.version>
++    <jcloverslf4j.version>1.7.6</jcloverslf4j.version>
++    <jersey.version>2.22.1</jersey.version>
++    <apache.commons.lang.version>3.4</apache.commons.lang.version>
++    <apache.commons.collections.version>3.2.2</apache.commons.collections.version>
++    <junit.version>4.11</junit.version>
++    <cglib.version>3.2.0</cglib.version>
++  </properties>
++
++  <dependencies>
++
++    <dependency>
++      <groupId>javax.servlet</groupId>
++      <artifactId>jstl</artifactId>
++      <version>1.2</version>
++    </dependency>
++    <dependency>
++      <groupId>javax.servlet</groupId>
++      <artifactId>servlet-api</artifactId>
++      <version>2.5</version>
++    </dependency>
++
++    <!--Jersey dependencies -->
++    <dependency>
++      <groupId>org.glassfish.jersey.core</groupId>
++      <artifactId>jersey-client</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.containers</groupId>
++      <artifactId>jersey-container-servlet</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.core</groupId>
++      <artifactId>jersey-server</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.ext</groupId>
++      <artifactId>jersey-spring3</artifactId>
++      <version>${jersey.version}</version>
++      <exclusions>
++        <exclusion>
++          <artifactId>spring-context</artifactId>
++          <groupId>org.springframework</groupId>
++        </exclusion>
++        <exclusion>
++          <artifactId>spring-beans</artifactId>
++          <groupId>org.springframework</groupId>
++        </exclusion>
++        <exclusion>
++          <artifactId>spring-core</artifactId>
++          <groupId>org.springframework</groupId>
++        </exclusion>
++        <exclusion>
++          <artifactId>spring-web</artifactId>
++          <groupId>org.springframework</groupId>
++        </exclusion>
++      </exclusions>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.media</groupId>
++      <artifactId>jersey-media-json-jackson</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.bundles.repackaged</groupId>
++      <artifactId>jersey-guava</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.glassfish.jersey.ext</groupId>
++      <artifactId>jersey-bean-validation</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++
++
++    <!-- Spring 3 dependencies -->
++    <dependency>
++      <groupId>org.springframework</groupId>
++      <artifactId>spring-core</artifactId>
++      <version>${spring.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.springframework</groupId>
++      <artifactId>spring-context</artifactId>
++      <version>${spring.version}</version>
++      <exclusions>
++        <exclusion>
++          <groupId>commons-logging</groupId>
++          <artifactId>commons-logging</artifactId>
++        </exclusion>
++      </exclusions>
++    </dependency>
++    <dependency>
++      <groupId>org.springframework</groupId>
++      <artifactId>spring-web</artifactId>
++      <version>${spring.version}</version>
++    </dependency>
++
++    <!-- needed for spring 3.1 -->
++    <dependency>
++      <groupId>cglib</groupId>
++      <artifactId>cglib</artifactId>
++      <version>${cglib.version}</version>
++    </dependency>
++
++    <!-- testing -->
++    <dependency>
++      <groupId>org.glassfish.jersey.core</groupId>
++      <artifactId>jersey-client</artifactId>
++      <version>${jersey.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>junit</groupId>
++      <artifactId>junit</artifactId>
++      <version>${junit.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.springframework</groupId>
++      <artifactId>spring-test</artifactId>
++      <version>${spring.version}</version>
++      <scope>test</scope>
++    </dependency>
++    <dependency>
++      <groupId>org.mockito</groupId>
++      <artifactId>mockito-all</artifactId>
++      <version>1.10.19</version>
++      <scope>test</scope>
++    </dependency>
++
++    <!-- LogBack dependencies -->
++    <dependency>
++      <groupId>ch.qos.logback</groupId>
++      <artifactId>logback-classic</artifactId>
++      <version>${logback.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>org.slf4j</groupId>
++      <artifactId>jcl-over-slf4j</artifactId>
++      <version>${jcloverslf4j.version}</version>
++    </dependency>
++
++    <dependency>
++      <groupId>org.apache.commons</groupId>
++      <artifactId>commons-lang3</artifactId>
++      <version>${apache.commons.lang.version}</version>
++    </dependency>
++    <dependency>
++      <groupId>commons-collections</groupId>
++      <artifactId>commons-collections</artifactId>
++      <version>${apache.commons.collections.version}</version>
++    </dependency>
++  </dependencies>
+ </project>
+diff --git a/src/main/java/com/h2rd/refactoring/ApplicationConfiguration.java b/src/main/java/com/h2rd/refactoring/ApplicationConfiguration.java
+new file mode 100644
+index 0000000..4858d28
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/ApplicationConfiguration.java
+@@ -0,0 +1,21 @@
++package com.h2rd.refactoring;
++
++import com.h2rd.refactoring.usermanagement.dao.MemoryBackedUserDao;
++import com.h2rd.refactoring.usermanagement.dao.UserDao;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.ComponentScan;
++import org.springframework.context.annotation.Configuration;
++
++@Configuration
++@ComponentScan(basePackages = {"com.h2rd.refactoring.usermanagement"})
++public class ApplicationConfiguration {
++    @Bean
++    Object testService() {
++        return new Object();
++    }
++
++    @Bean
++    UserDao testUserDao() {
++        return new MemoryBackedUserDao();
++    }
++}
+diff --git a/src/main/java/com/h2rd/refactoring/usermanagement/User.java b/src/main/java/com/h2rd/refactoring/usermanagement/User.java
+index 412639d..6e60af0 100755
+--- a/src/main/java/com/h2rd/refactoring/usermanagement/User.java
++++ b/src/main/java/com/h2rd/refactoring/usermanagement/User.java
+@@ -1,31 +1,86 @@
+ package com.h2rd.refactoring.usermanagement;
+ 
++import org.apache.commons.lang3.builder.CompareToBuilder;
++import org.apache.commons.lang3.builder.EqualsBuilder;
++import org.apache.commons.lang3.builder.HashCodeBuilder;
++import org.hibernate.validator.constraints.Email;
++import org.hibernate.validator.constraints.NotEmpty;
++
++import javax.validation.constraints.Size;
+ import javax.xml.bind.annotation.XmlRootElement;
++import java.util.ArrayList;
+ import java.util.List;
+ 
+ @XmlRootElement
+-public class User {
++public class User implements Comparable {
++
++    @NotEmpty
++    private String name;
++
++    @NotEmpty
++    @Email
++    private String email;
+ 
+-    String name;
+-    String email;
+-    List<String> roles;
++    @Size(min = 1)
++    private List<String> roles = new ArrayList<String>();
++
++    public User() {
++
++    }
++
++    public User(String email, String name, List<String> roles) {
++        this.setName(name);
++        this.setEmail(email);
++        this.setRoles(roles);
++    }
+ 
+     public String getName() {
+         return name;
+     }
++
+     public void setName(String name) {
+         this.name = name;
+     }
++
+     public String getEmail() {
+         return email;
+     }
++
+     public void setEmail(String email) {
+         this.email = email;
+     }
++
+     public List<String> getRoles() {
+         return roles;
+     }
++
+     public void setRoles(List<String> roles) {
+-        this.roles = roles;
++        this.roles.clear();
++        this.roles.addAll(roles);
++    }
++
++    @Override
++    public boolean equals(Object o) {
++        if (this == o) return true;
++
++        if (o == null || getClass() != o.getClass()) return false;
++
++        User user = (User) o;
++
++        return new EqualsBuilder()
++                .append(email, user.email)
++                .isEquals();
++    }
++
++    @Override
++    public int hashCode() {
++        return new HashCodeBuilder(17, 37)
++                .append(email)
++                .toHashCode();
++    }
++
++    public int compareTo(Object o) {
++        User myClass = (User) o;
++        return new CompareToBuilder().append(this.email, myClass.email).toComparison();
+     }
+ }
+diff --git a/src/main/java/com/h2rd/refactoring/usermanagement/UserDao.java b/src/main/java/com/h2rd/refactoring/usermanagement/UserDao.java
+deleted file mode 100644
+index e5c67c5..0000000
+--- a/src/main/java/com/h2rd/refactoring/usermanagement/UserDao.java
++++ /dev/null
+@@ -1,71 +0,0 @@
+-package com.h2rd.refactoring.usermanagement;
+-
+-import java.util.ArrayList;
+-
+-public class UserDao {
+-
+-    public ArrayList<User> users;
+-
+-    public static UserDao userDao;
+-
+-    public static UserDao getUserDao() {
+-        if (userDao == null) {
+-            userDao = new UserDao();
+-        }
+-        return userDao;
+-    }
+-
+-    public void saveUser(User user) {
+-        if (users == null) {
+-            users = new ArrayList<User>();
+-        }
+-        users.add(user);
+-    }
+-
+-    public ArrayList<User> getUsers() {
+-        try {
+-            return users;
+-        } catch (Throwable e) {
+-            System.out.println("error");
+-            return null;
+-        }
+-    }
+-
+-    public void deleteUser(User userToDelete) {
+-        try {
+-            for (User user : users) {
+-                if (user.getName() == userToDelete.getName()) {
+-                    users.remove(user);
+-                }
+-            }
+-        } catch (Exception e) {
+-            e.printStackTrace();
+-        }
+-    }
+-
+-    public void updateUser(User userToUpdate) {
+-        try {
+-            for (User user : users) {
+-                if (user.getName() == userToUpdate.getName()) {
+-                    user.setEmail(userToUpdate.getEmail());
+-                    user.setRoles(userToUpdate.getRoles());
+-                }
+-            }
+-        } catch (RuntimeException e) {
+-            e.printStackTrace();
+-        }
+-    }
+-
+-    public User findUser(String name) {
+-        try {
+-            for (User user : users) {
+-                if (user.getName() == name) {
+-                    return user;
+-                }
+-            }
+-        } catch (NullPointerException e) {
+-            e.printStackTrace();
+-        }
+-        return null;
+-    }
+-}
+diff --git a/src/main/java/com/h2rd/refactoring/usermanagement/dao/MemoryBackedUserDao.java b/src/main/java/com/h2rd/refactoring/usermanagement/dao/MemoryBackedUserDao.java
+new file mode 100644
+index 0000000..c311e6b
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/usermanagement/dao/MemoryBackedUserDao.java
+@@ -0,0 +1,68 @@
++package com.h2rd.refactoring.usermanagement.dao;
++
++import com.h2rd.refactoring.usermanagement.User;
++import org.springframework.stereotype.Repository;
++
++import java.util.HashSet;
++import java.util.Set;
++import java.util.concurrent.ConcurrentSkipListSet;
++
++@Repository("userDao")
++public class MemoryBackedUserDao implements UserDao {
++    private Set<User> users = new ConcurrentSkipListSet<User>();
++
++    public void saveUser(User user) {
++        users.add(user);
++    }
++
++    public Set<User> getUsers() {
++        return users;
++    }
++
++    public void deleteUser(User userToDelete) {
++        for (User user : users) {
++            if (user.equals(userToDelete)) {
++                users.remove(user);
++                break;
++            }
++        }
++    }
++
++    public void updateUser(User userToUpdate) {
++        for (User user : users) {
++            if (user.equals(userToUpdate)) {
++                user.setName(userToUpdate.getName());
++                user.setRoles(userToUpdate.getRoles());
++            }
++        }
++    }
++
++    public User findUser(String email) {
++        for (User user : users) {
++            if (user.getEmail().equals(email)) {
++                return user;
++            }
++        }
++        return null;
++    }
++
++
++    public User findUserByName(String name) {
++        for (User user : users) {
++            if (user.getName().equals(name)) {
++                return user;
++            }
++        }
++        return null;
++    }
++
++    public Set<User> findUsers(String name) {
++        Set<User> foundUsers = new HashSet<User>();
++        for (User user : users) {
++            if (user.getName().equals(name)) {
++                foundUsers.add(user);
++            }
++        }
++        return foundUsers;
++    }
++}
+diff --git a/src/main/java/com/h2rd/refactoring/usermanagement/dao/UserDao.java b/src/main/java/com/h2rd/refactoring/usermanagement/dao/UserDao.java
+new file mode 100644
+index 0000000..74406d1
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/usermanagement/dao/UserDao.java
+@@ -0,0 +1,22 @@
++package com.h2rd.refactoring.usermanagement.dao;
++
++import com.h2rd.refactoring.usermanagement.User;
++
++import java.util.Set;
++
++public interface UserDao {
++
++    void saveUser(User user);
++
++    Set<User> getUsers();
++
++    void deleteUser(User user);
++
++    void updateUser(User user);
++
++    User findUser(String email);
++
++    User findUserByName(String name);
++
++    Set<User> findUsers(String name);
++}
+diff --git a/src/main/java/com/h2rd/refactoring/web/MyApplication.java b/src/main/java/com/h2rd/refactoring/web/MyApplication.java
+new file mode 100644
+index 0000000..1252235
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/web/MyApplication.java
+@@ -0,0 +1,14 @@
++package com.h2rd.refactoring.web;
++
++import org.glassfish.jersey.jackson.JacksonFeature;
++import org.glassfish.jersey.server.ResourceConfig;
++import org.glassfish.jersey.server.spring.scope.RequestContextFilter;
++
++public class MyApplication extends ResourceConfig {
++
++    public MyApplication() {
++        register(RequestContextFilter.class);
++        register(JacksonFeature.class);
++        packages(true, "com.h2rd.refactoring.web.rest");
++    }
++}
+diff --git a/src/main/java/com/h2rd/refactoring/web/UserResource.java b/src/main/java/com/h2rd/refactoring/web/UserResource.java
+deleted file mode 100644
+index a7c36a8..0000000
+--- a/src/main/java/com/h2rd/refactoring/web/UserResource.java
++++ /dev/null
+@@ -1,107 +0,0 @@
+-package com.h2rd.refactoring.web;
+-
+-import com.h2rd.refactoring.usermanagement.User;
+-import com.h2rd.refactoring.usermanagement.UserDao;
+-
+-import javax.ws.rs.*;
+-import javax.ws.rs.core.GenericEntity;
+-import javax.ws.rs.core.Response;
+-
+-import org.springframework.context.ApplicationContext;
+-import org.springframework.context.support.ClassPathXmlApplicationContext;
+-import org.springframework.stereotype.Repository;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-@Path("/users")
+-@Repository
+-public class UserResource{
+-
+-    public UserDao userDao;
+-
+-    @GET
+-    @Path("add/")
+-    public Response addUser(@QueryParam("name") String name,
+-                            @QueryParam("email") String email,
+-                            @QueryParam("role") List<String> roles) {
+-
+-        User user = new User();
+-        user.setName(name);
+-        user.setEmail(email);
+-        user.setRoles(roles);
+-
+-        if (userDao == null) {
+-            userDao = UserDao.getUserDao();
+-        }
+-
+-        userDao.saveUser(user);
+-        return Response.ok().entity(user).build();
+-    }
+-
+-    @GET
+-    @Path("update/")
+-    public Response updateUser(@QueryParam("name") String name,
+-                               @QueryParam("email") String email,
+-                               @QueryParam("role") List<String> roles) {
+-
+-        User user = new User();
+-        user.setName(name);
+-        user.setEmail(email);
+-        user.setRoles(roles);
+-
+-        if (userDao == null) {
+-            userDao = UserDao.getUserDao();
+-        }
+-
+-        userDao.updateUser(user);
+-        return Response.ok().entity(user).build();
+-    }
+-
+-    @GET
+-    @Path("delete/")
+-    public Response deleteUser(@QueryParam("name") String name,
+-                               @QueryParam("email") String email,
+-                               @QueryParam("role") List<String> roles) {
+-        User user = new User();
+-        user.setName(name);
+-        user.setEmail(email);
+-        user.setRoles(roles);
+-
+-        if (userDao == null) {
+-            userDao = UserDao.getUserDao();
+-        }
+-
+-        userDao.deleteUser(user);
+-        return Response.ok().entity(user).build();
+-    }
+-
+-    @GET
+-    @Path("find/")
+-    public Response getUsers() {
+-    	
+-        ApplicationContext context = new ClassPathXmlApplicationContext(new String[] {
+-    		"classpath:/application-config.xml"	
+-    	});
+-    	userDao = context.getBean(UserDao.class);
+-    	List<User> users = userDao.getUsers();
+-    	if (users == null) {
+-    		users = new ArrayList<User>();
+-    	}
+-
+-        GenericEntity<List<User>> usersEntity = new GenericEntity<List<User>>(users) {};
+-        return Response.status(200).entity(usersEntity).build();
+-    }
+-
+-    @GET
+-    @Path("search/")
+-    public Response findUser(@QueryParam("name") String name) {
+-
+-        if (userDao == null) {
+-            userDao = UserDao.getUserDao();
+-        }
+-
+-        User user = userDao.findUser(name);
+-        return Response.ok().entity(user).build();
+-    }
+-}
+diff --git a/src/main/java/com/h2rd/refactoring/web/rest/UserResource.java b/src/main/java/com/h2rd/refactoring/web/rest/UserResource.java
+new file mode 100644
+index 0000000..9bd5f3b
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/web/rest/UserResource.java
+@@ -0,0 +1,86 @@
++package com.h2rd.refactoring.web.rest;
++
++import com.h2rd.refactoring.usermanagement.User;
++import com.h2rd.refactoring.usermanagement.dao.UserDao;
++import org.springframework.beans.factory.annotation.Autowired;
++
++import javax.ws.rs.GET;
++import javax.ws.rs.Path;
++import javax.ws.rs.QueryParam;
++import javax.ws.rs.core.GenericEntity;
++import javax.ws.rs.core.Response;
++import java.util.List;
++import java.util.Set;
++
++/**
++ * I left this class here for discussion
++ * I clean it up so its not so messary but the core of the logic stays in place
++ * I did not remove its usage it out since the idea
++ * is that I am assuming that there are clients
++ * using it could be used currently
++ * even though it doesn't enforce all the rules correctly
++ */
++@Path("/users")
++public class UserResource {
++
++    @Autowired
++    UserDao userDao;
++
++    @GET
++    @Path("add/")
++    public Response addUser(@QueryParam("name") String name,
++                            @QueryParam("email") String email,
++                            @QueryParam("role") List<String> roles) {
++
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(roles);
++        userDao.saveUser(user);
++        return Response.ok().entity(user).build();
++    }
++
++    @GET
++    @Path("update/")
++    public Response updateUser(@QueryParam("name") String name,
++                               @QueryParam("email") String email,
++                               @QueryParam("role") List<String> roles) {
++
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(roles);
++        userDao.updateUser(user);
++        return Response.ok().entity(user).build();
++    }
++
++    @GET
++    @Path("delete/")
++    public Response deleteUser(@QueryParam("name") String name,
++                               @QueryParam("email") String email,
++                               @QueryParam("role") List<String> roles) {
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(roles);
++
++        userDao.deleteUser(user);
++        return Response.ok().entity(user).build();
++    }
++
++    @GET
++    @Path("find/")
++    public Response getUsers() {
++        Set<User> users = userDao.getUsers();
++        GenericEntity<Set<User>> usersEntity = new GenericEntity<Set<User>>(users) {
++        };
++        return Response.ok().entity(usersEntity).build();
++    }
++
++    @GET
++    @Path("search/")
++    public Response findUser(@QueryParam("name") String name) {
++        User user = userDao.findUserByName(name);
++        return Response.ok().entity(user).build();
++    }
++}
+diff --git a/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+new file mode 100644
+index 0000000..194e3df
+--- /dev/null
++++ b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+@@ -0,0 +1,154 @@
++package com.h2rd.refactoring.web.rest;
++
++import com.h2rd.refactoring.usermanagement.User;
++import com.h2rd.refactoring.usermanagement.dao.UserDao;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Autowired;
++
++import javax.validation.Valid;
++import javax.ws.rs.Consumes;
++import javax.ws.rs.DELETE;
++import javax.ws.rs.FormParam;
++import javax.ws.rs.GET;
++import javax.ws.rs.POST;
++import javax.ws.rs.PUT;
++import javax.ws.rs.Path;
++import javax.ws.rs.PathParam;
++import javax.ws.rs.Produces;
++import javax.ws.rs.core.Context;
++import javax.ws.rs.core.GenericEntity;
++import javax.ws.rs.core.MediaType;
++import javax.ws.rs.core.Response;
++import javax.ws.rs.core.UriInfo;
++import java.net.URI;
++import java.util.List;
++import java.util.Set;
++
++@Path("v2/users")
++public class UserResourceV2 {
++    static Logger LOGGER = LoggerFactory.getLogger(UserResourceV2.class);
++
++    @Context
++    UriInfo uriInfo;
++
++    @Autowired
++    UserDao userDao;
++
++    //just for testing
++    @Deprecated
++    @POST
++    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response addUserFormEncoded(@FormParam("name") String name,
++                                       @FormParam("email") String email,
++                                       @FormParam("role") List<String> roles) {
++        User foundUser = userDao.findUser(email);
++        if (foundUser != null) {
++            LOGGER.debug("A User with email " + foundUser.getEmail() + " already exist");
++            return Response.status(Response.Status.CONFLICT).build();
++        }
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(roles);
++        userDao.saveUser(user);
++        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getName()).build();
++        return Response.created(uri).entity(user).build();
++    }
++
++
++    @POST
++    @Consumes(MediaType.APPLICATION_JSON)
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response addUser(@Valid final User user) {
++        User foundUser = userDao.findUser(user.getEmail());
++        if (foundUser != null) {
++            LOGGER.debug("A User with email " + foundUser.getEmail() + " already exist");
++            return Response.status(Response.Status.CONFLICT).build();
++        }
++        userDao.saveUser(user);
++        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getName()).build();
++        return Response.created(uri).entity(user).build();
++    }
++
++
++    //just for testing
++    @Deprecated
++    @PUT
++    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
++    @Path("{email}")
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response updateUserFormEncoded(@PathParam("name") String name,
++                                          @FormParam("email") String email,
++                                          @FormParam("role") List<String> roles) {
++        LOGGER.debug("Updating User " + name);
++        User existingUser = userDao.findUser(email);
++        if (existingUser == null) {
++            LOGGER.debug("User with email " + email + " not found");
++            return Response.status(Response.Status.NOT_FOUND).build();
++        }
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(roles);
++        userDao.updateUser(user);
++        return Response.ok().entity(user).build();
++    }
++
++    @PUT
++    @Consumes(MediaType.APPLICATION_JSON)
++    @Path("{email}")
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response updateUser(@PathParam("email") String email,
++                               @Valid final User user) {
++        LOGGER.debug("Updating User " + email);
++        User existingUser = userDao.findUser(email);
++        if (existingUser == null) {
++            LOGGER.debug("User with email " + email + " not found");
++            return Response.status(Response.Status.NOT_FOUND).build();
++        }
++        user.setEmail(email);
++        userDao.updateUser(user);
++        return Response.ok().entity(user).build();
++    }
++
++    @DELETE
++    @Path("{email}")
++    public Response deleteUser(@PathParam("email") String email) {
++        LOGGER.debug("Deleting User " + email);
++        User existingUser = userDao.findUser(email);
++        if (existingUser == null) {
++            LOGGER.debug("User with email " + email + " not found");
++            return Response.status(Response.Status.NOT_FOUND).build();
++        }
++        userDao.deleteUser(existingUser);
++        return Response.noContent().build();
++    }
++
++    @GET
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response getUsers() {
++        Set<User> users = userDao.getUsers();
++        if (users.isEmpty()) {
++            return Response.noContent().build();
++        }
++        GenericEntity<Set<User>> usersEntity = new GenericEntity<Set<User>>(users) {
++        };
++        return Response.ok().entity(usersEntity).build();
++    }
++
++    @GET
++    @Path("{email}")
++    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++    public Response findUser(@PathParam("email") String email) {
++        LOGGER.debug("findUserByEmail=" + email);
++        User user = userDao.findUser(email);
++        if (user == null) {
++            LOGGER.debug("User with email " + email + " not found");
++            return Response.status(Response.Status.NOT_FOUND).build();
++        }
++
++        return Response.ok().entity(user).build();
++    }
++}
+diff --git a/src/main/resources/application-config.xml b/src/main/resources/application-config.xml
+deleted file mode 100644
+index db17540..0000000
+--- a/src/main/resources/application-config.xml
++++ /dev/null
+@@ -1,10 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-
+-<beans xmlns="http://www.springframework.org/schema/beans"
+-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-    xsi:schemaLocation="http://www.springframework.org/schema/beans 
+-       http://www.springframework.org/schema/beans/spring-beans-3.1.xsd">
+- 
+-    <bean id="userDao" class="com.h2rd.refactoring.usermanagement.UserDao" />
+-     
+-</beans>
+diff --git a/src/main/resources/logback.xml b/src/main/resources/logback.xml
+new file mode 100644
+index 0000000..5cd34f1
+--- /dev/null
++++ b/src/main/resources/logback.xml
+@@ -0,0 +1,50 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<configuration>
++  <appender name="consoleAppender" class="ch.qos.logback.core.ConsoleAppender">
++    <layout class="ch.qos.logback.classic.PatternLayout">
++      <Pattern>.%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg %n
++      </Pattern>
++    </layout>
++    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
++      <level>TRACE</level>
++    </filter>
++  </appender>
++
++  <!--<appender name="dailyRollingFileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
++  <!--<File>c:/tmp/rest-demo.log</File>-->
++  <!--<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
++  <!--&lt;!&ndash; daily rollover &ndash;&gt;-->
++  <!--<FileNamePattern>rest-demo.%d{yyyy-MM-dd}.log</FileNamePattern>-->
++
++  <!--&lt;!&ndash; keep 30 days' worth of history &ndash;&gt;-->
++  <!--<maxHistory>30</maxHistory>-->
++  <!--</rollingPolicy>-->
++
++  <!--<encoder>-->
++  <!--<Pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{35} - %msg %n</Pattern>-->
++  <!--</encoder>-->
++  <!--</appender>-->
++  <!--<appender name="minuteRollingFileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
++  <!--<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
++  <!--&lt;!&ndash; rollover every minute &ndash;&gt;-->
++  <!--<FileNamePattern>c:/tmp/minutes/rest-demo-minute.%d{yyyy-MM-dd_HH-mm}.log</FileNamePattern>-->
++
++  <!--&lt;!&ndash; keep 30 minutes' worth of history &ndash;&gt;-->
++  <!--<maxHistory>30</maxHistory>-->
++  <!--</rollingPolicy>-->
++
++  <!--<encoder>-->
++  <!--<Pattern>%-4relative [%thread] %-5level %logger{35} - %msg %n</Pattern>-->
++  <!--</encoder>-->
++  <!--</appender>-->
++
++  <logger name="com.h2rd" additivity="false">
++    <level value="DEBUG"/>
++    <appender-ref ref="consoleAppender"/>
++  </logger>
++
++  <root>
++    <level value="INFO"/>
++    <appender-ref ref="consoleAppender"/>
++  </root>
++</configuration>
+diff --git a/src/main/webapp/WEB-INF/web.xml b/src/main/webapp/WEB-INF/web.xml
+index 1cf6ba8..b1d16b0 100755
+--- a/src/main/webapp/WEB-INF/web.xml
++++ b/src/main/webapp/WEB-INF/web.xml
+@@ -1,25 +1,39 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <web-app xmlns="http://java.sun.com/xml/ns/javaee"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-         xmlns:web="http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+          version="2.5">
+ 
+-    <display-name>java-refactoring-exercise</display-name>
++  <display-name>java-refactoring-exercise</display-name>
++  <context-param>
++    <param-name>contextClass</param-name>
++    <param-value>
++      org.springframework.web.context.support.AnnotationConfigWebApplicationContext
++    </param-value>
++  </context-param>
+ 
+-  	<servlet>
+-		<servlet-name>refactoring-exercise</servlet-name>
+-		<servlet-class>com.sun.jersey.spi.container.servlet.ServletContainer</servlet-class>
+-		<init-param>
+-		     <param-name>com.sun.jersey.config.property.packages</param-name>
+-		     <param-value>com.h2rd.refactoring</param-value>
+-		</init-param>
+-		<load-on-startup>1</load-on-startup>
+-	</servlet>
+- 
+-	<servlet-mapping>
+-		<servlet-name>refactoring-exercise</servlet-name>
+-		<url-pattern>/rest/*</url-pattern>
+-	</servlet-mapping>
++  <context-param>
++    <param-name>contextConfigLocation</param-name>
++    <param-value>com.h2rd.refactoring.ApplicationConfiguration</param-value>
++  </context-param>
++
++  <listener>
++    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
++  </listener>
++
++  <servlet>
++    <servlet-name>refactoring-exercise</servlet-name>
++    <servlet-class>org.glassfish.jersey.servlet.ServletContainer</servlet-class>
++    <init-param>
++      <param-name>javax.ws.rs.Application</param-name>
++      <param-value>com.h2rd.refactoring.web.MyApplication</param-value>
++    </init-param>
++    <load-on-startup>1</load-on-startup>
++  </servlet>
++
++  <servlet-mapping>
++    <servlet-name>refactoring-exercise</servlet-name>
++    <url-pattern>/rest/*</url-pattern>
++  </servlet-mapping>
+ 
+ </web-app>
+diff --git a/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java b/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
+index f0b84ac..e76dfdd 100644
+--- a/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
+@@ -9,7 +9,7 @@ import junit.framework.Assert;
+ import org.junit.Test;
+ 
+ import com.h2rd.refactoring.usermanagement.User;
+-import com.h2rd.refactoring.web.UserResource;
++import com.h2rd.refactoring.web.rest.UserResource;
+ 
+ public class UserIntegrationTest {
+ 	
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
+new file mode 100644
+index 0000000..f090527
+--- /dev/null
++++ b/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
+@@ -0,0 +1,132 @@
++package test.com.h2rd.refactoring.unit;
++
++import com.h2rd.refactoring.usermanagement.dao.MemoryBackedUserDao;
++import com.h2rd.refactoring.usermanagement.User;
++import org.junit.Test;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++
++public class MemoryBackedUserDaoUnitTest {
++
++    MemoryBackedUserDao userDao = new MemoryBackedUserDao();
++
++    @Test
++    public void getUsers() {
++        String email = "fake@email.com";
++        String name = "Fake name";
++        String role1 = "admin";
++        String role2 = "master";
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(Arrays.asList(role1, role2));
++        userDao.saveUser(user);
++        List<User> users = new ArrayList(userDao.getUsers());
++        assert users.size() == 1;
++        assert users.get(0).equals(user);
++    }
++
++    @Test
++    public void saveUser() {
++        String email = "fake@email.com";
++        String name = "Fake name";
++        String role1 = "admin";
++        String role2 = "master";
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(Arrays.asList(role1, role2));
++        userDao.saveUser(user);
++        assert 1 == userDao.getUsers().size();
++        User foundUser = userDao.findUser(email);
++        assert user.getName().equals(foundUser.getName());
++        assert user.getEmail().equals(foundUser.getEmail());
++        assert user.getRoles().equals(foundUser.getRoles());
++
++        userDao.saveUser(user);
++        assert 1 == userDao.getUsers().size();
++    }
++
++    @Test
++    public void deleteUser() {
++        User user = new User();
++        user.setName("Fake Name");
++        user.setEmail("fake@email.com");
++        user.setRoles(Arrays.asList("admin", "master"));
++        userDao.deleteUser(user);
++        assert userDao.getUsers().size() == 0;
++        userDao.deleteUser(user);
++    }
++
++    @Test
++    public void findUser() {
++        String email = "fake@email.com";
++        String name = "Fake name";
++        String role1 = "admin";
++        String role2 = "master";
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(Arrays.asList(role1, role2));
++        userDao.saveUser(user);
++        assert userDao.findUser(email).equals(user);
++        assert userDao.findUser("nonexisting") == null;
++    }
++
++    @Test
++    public void findUserByName() {
++        String email = "fake@email.com";
++        String name = "Fake name";
++        String role1 = "admin";
++        String role2 = "master";
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(Arrays.asList(role1, role2));
++        userDao.saveUser(user);
++        assert userDao.findUserByName(name).equals(user);
++        assert userDao.findUserByName("nonexisting") == null;
++    }
++
++    @Test
++    public void updateUser() {
++        String email = "fake@email.com";
++        String name = "Fake name";
++        String role1 = "admin";
++        String role2 = "master";
++        User user = new User();
++        user.setName(name);
++        user.setEmail(email);
++        user.setRoles(Arrays.asList(role1, role2));
++        userDao.saveUser(user);
++
++
++        String newName = "new name";
++        String newRole1 = "newrole1";
++        String newRole2 = "newrole2";
++        String newRole3 = "newrole3";
++        User newUser = new User(email, newName, Arrays.asList(newRole1, newRole2, newRole3));
++        userDao.updateUser(newUser);
++        assert 1 == userDao.getUsers().size();
++        List<User> users = new ArrayList(userDao.getUsers());
++        assert users.size() == 1;
++        User foundUser = users.get(0);
++        assert newUser.getEmail().equals(foundUser.getEmail());
++        assert newUser.getName().equals(foundUser.getName());
++        assert newUser.getRoles().equals(foundUser.getRoles());
++
++        User nonExistingNewUser = new User("nonexistingemail", newName, Arrays.asList(newRole1, newRole2, newRole3));
++        userDao.updateUser(nonExistingNewUser);
++
++        users = new ArrayList(userDao.getUsers());
++        assert users.size() == 1;
++        foundUser = users.get(0);
++        assert newUser.getEmail().equals(foundUser.getEmail());
++        assert newUser.getName().equals(foundUser.getName());
++        assert newUser.getRoles().equals(foundUser.getRoles());
++
++
++    }
++}
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserDaoUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserDaoUnitTest.java
+deleted file mode 100644
+index 34611af..0000000
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserDaoUnitTest.java
++++ /dev/null
+@@ -1,39 +0,0 @@
+-package test.com.h2rd.refactoring.unit;
+-
+-import com.h2rd.refactoring.usermanagement.User;
+-import com.h2rd.refactoring.usermanagement.UserDao;
+-import org.junit.Test;
+-
+-import java.util.Arrays;
+-
+-public class UserDaoUnitTest {
+-
+-    UserDao userDao;
+-
+-    @Test
+-    public void saveUserTest() {
+-        userDao = UserDao.getUserDao();
+-
+-        User user = new User();
+-        user.setName("Fake Name");
+-        user.setEmail("fake@email.com");
+-        user.setRoles(Arrays.asList("admin", "master"));
+-
+-        userDao.saveUser(user);
+-    }
+-
+-    @Test
+-    public void deleteUserTest() {
+-        userDao = UserDao.getUserDao();
+-
+-        User user = new User();
+-        user.setName("Fake Name");
+-        user.setEmail("fake@email.com");
+-        user.setRoles(Arrays.asList("admin", "master"));
+-
+-        try {
+-            userDao.deleteUser(user);
+-        } catch (NullPointerException e) {
+-        }
+-    }
+-}
+\ No newline at end of file
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+index f9bafc4..b038055 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+@@ -1,30 +1,50 @@
+ package test.com.h2rd.refactoring.unit;
+ 
++import static org.mockito.Mockito.when;
++import static org.mockito.Mockito.reset;
+ import com.h2rd.refactoring.usermanagement.User;
+-import com.h2rd.refactoring.usermanagement.UserDao;
+-import com.h2rd.refactoring.web.UserResource;
+-import junit.framework.Assert;
++import com.h2rd.refactoring.usermanagement.dao.UserDao;
++import com.h2rd.refactoring.web.rest.UserResource;
+ import org.junit.Test;
++import org.junit.runner.RunWith;
++import org.mockito.InjectMocks;
++import org.mockito.Mock;
++import org.mockito.runners.MockitoJUnitRunner;
++import org.springframework.http.HttpStatus;
+ 
+ import javax.ws.rs.core.Response;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
+ 
++@RunWith(MockitoJUnitRunner.class)
+ public class UserResourceUnitTest {
+ 
+-    UserResource userResource;
++    @Mock
+     UserDao userDao;
+ 
+-    @Test
+-    public void getUsersTest() {
+-
+-        userResource = new UserResource();
+-        userDao = UserDao.getUserDao();
+-
+-        User user = new User();
+-        user.setName("fake user");
+-        user.setEmail("fake@user.com");
+-        userDao.saveUser(user);
++    @InjectMocks
++    UserResource userResource;
+ 
++    @Test
++    public void getUsers() {
++        User user = new User("test@test.com", "test", Arrays.asList("role1"));
++        Set<User> users = new HashSet<User>(Arrays.asList(user));
++        when(userDao.getUsers()).thenReturn(users);
+         Response response = userResource.getUsers();
+-        Assert.assertEquals(200, response.getStatus());
++        assert HttpStatus.OK.value() == response.getStatus();
++        List<User> outputUsers = new ArrayList((Set<User>) response.getEntity());
++        assert outputUsers.size() == 1;
++        assert user.getName().equals(outputUsers.get(0).getName());
++        assert user.getEmail().equals(outputUsers.get(0).getEmail());
++        assert user.getRoles().equals(outputUsers.get(0).getRoles());
++
++        reset(userDao);
++        when(userDao.getUsers()).thenReturn(new HashSet<User>());
++        response = userResource.getUsers();
++        outputUsers = new ArrayList((Set<User>) response.getEntity());
++        assert outputUsers.size() == 0;
+     }
+ }
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+new file mode 100644
+index 0000000..cda059c
+--- /dev/null
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+@@ -0,0 +1,50 @@
++package test.com.h2rd.refactoring.unit;
++
++import static org.mockito.Mockito.reset;
++import static org.mockito.Mockito.when;
++import com.h2rd.refactoring.usermanagement.User;
++import com.h2rd.refactoring.usermanagement.dao.UserDao;
++import com.h2rd.refactoring.web.rest.UserResource;
++import org.junit.Test;
++import org.junit.runner.RunWith;
++import org.mockito.InjectMocks;
++import org.mockito.Mock;
++import org.mockito.runners.MockitoJUnitRunner;
++import org.springframework.http.HttpStatus;
++
++import javax.ws.rs.core.Response;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++
++@RunWith(MockitoJUnitRunner.class)
++public class UserResourceV2UnitTest {
++
++    @Mock
++    UserDao userDao;
++
++    @InjectMocks
++    UserResource userResource;
++
++    @Test
++    public void getUsers() {
++        User user = new User("test@test.com", "test", Arrays.asList("role1"));
++        Set<User> users = new HashSet<User>(Arrays.asList(user));
++        when(userDao.getUsers()).thenReturn(users);
++        Response response = userResource.getUsers();
++        assert HttpStatus.OK.value() == response.getStatus();
++        List<User> outputUsers = new ArrayList((Set<User>) response.getEntity());
++        assert outputUsers.size() == 1;
++        assert user.getName().equals(outputUsers.get(0).getName());
++        assert user.getEmail().equals(outputUsers.get(0).getEmail());
++        assert user.getRoles().equals(outputUsers.get(0).getRoles());
++
++        reset(userDao);
++        when(userDao.getUsers()).thenReturn(new HashSet<User>());
++        response = userResource.getUsers();
++        outputUsers = new ArrayList((Set<User>) response.getEntity());
++        assert outputUsers.size() == 0;
++    }
++}
+-- 
+1.7.11.1
+
+From 9e8e3a8d030f11bfd64cdf317b39dc40a672eac1 Mon Sep 17 00:00:00 2001
+From: Hieu Bui <hbui@gravie.com>
+Date: Tue, 23 Feb 2016 14:59:36 -0700
+Subject: [PATCH] add tests
+
+---
+ .../refactoring/unit/UserResourceUnitTest.java     |   1 +
+ .../refactoring/unit/UserResourceV2UnitTest.java   | 128 +++++++++++++++++++--
+ 2 files changed, 122 insertions(+), 7 deletions(-)
+
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+index b038055..df3fc5e 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+@@ -44,6 +44,7 @@ public class UserResourceUnitTest {
+         reset(userDao);
+         when(userDao.getUsers()).thenReturn(new HashSet<User>());
+         response = userResource.getUsers();
++        assert HttpStatus.OK.value() == response.getStatus();
+         outputUsers = new ArrayList((Set<User>) response.getEntity());
+         assert outputUsers.size() == 0;
+     }
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+index cda059c..831b8bf 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+@@ -1,18 +1,22 @@
+ package test.com.h2rd.refactoring.unit;
+ 
+-import static org.mockito.Mockito.reset;
++import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.when;
+ import com.h2rd.refactoring.usermanagement.User;
+ import com.h2rd.refactoring.usermanagement.dao.UserDao;
+-import com.h2rd.refactoring.web.rest.UserResource;
++import com.h2rd.refactoring.web.rest.UserResourceV2;
++import org.glassfish.jersey.uri.internal.JerseyUriBuilder;
+ import org.junit.Test;
+ import org.junit.runner.RunWith;
++import org.mockito.ArgumentCaptor;
+ import org.mockito.InjectMocks;
+ import org.mockito.Mock;
+ import org.mockito.runners.MockitoJUnitRunner;
+ import org.springframework.http.HttpStatus;
+ 
+ import javax.ws.rs.core.Response;
++import javax.ws.rs.core.UriBuilder;
++import javax.ws.rs.core.UriInfo;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.HashSet;
+@@ -25,8 +29,11 @@ public class UserResourceV2UnitTest {
+     @Mock
+     UserDao userDao;
+ 
++    @Mock
++    UriInfo uriInfo;
++
+     @InjectMocks
+-    UserResource userResource;
++    UserResourceV2 userResource;
+ 
+     @Test
+     public void getUsers() {
+@@ -40,11 +47,118 @@ public class UserResourceV2UnitTest {
+         assert user.getName().equals(outputUsers.get(0).getName());
+         assert user.getEmail().equals(outputUsers.get(0).getEmail());
+         assert user.getRoles().equals(outputUsers.get(0).getRoles());
++    }
+ 
+-        reset(userDao);
++    @Test
++    public void getUsersNoUsersFound() {
+         when(userDao.getUsers()).thenReturn(new HashSet<User>());
+-        response = userResource.getUsers();
+-        outputUsers = new ArrayList((Set<User>) response.getEntity());
+-        assert outputUsers.size() == 0;
++        Response response = userResource.getUsers();
++        assert HttpStatus.NO_CONTENT.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void deleteUserNoUserFound() {
++        String email = "email@email.com";
++        when(userDao.findUser(email)).thenReturn(null);
++        Response response = userResource.deleteUser(email);
++        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void deleteUser() {
++        String email = "email@email.com";
++        User user = new User("test@test.com", "test", Arrays.asList("role1"));
++        when(userDao.findUser(email)).thenReturn(user);
++        Response response = userResource.deleteUser(email);
++        verify(userDao).deleteUser(user);
++        assert HttpStatus.NO_CONTENT.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void findUser() {
++        String email = "email@email.com";
++        User user = new User("test@test.com", "test", Arrays.asList("role1"));
++        when(userDao.findUser(email)).thenReturn(user);
++        Response response = userResource.findUser(email);
++        assert HttpStatus.OK.value() == response.getStatus();
++        User outputUser = (User) response.getEntity();
++        outputUser.getName().equals(user.getName());
++        outputUser.getEmail().equals(user.getEmail());
++        outputUser.getRoles().equals(user.getRoles());
++    }
++
++    @Test
++    public void findUserNotFound() {
++        String email = "email@email.com";
++        when(userDao.findUser(email)).thenReturn(null);
++        Response response = userResource.findUser(email);
++        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void updateUserNotFound() {
++        String email = "email@email.com";
++        User user = new User("test@test.com", "test", Arrays.asList("role1"));
++        when(userDao.findUser(email)).thenReturn(null);
++        Response response = userResource.updateUser(email, user);
++        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void updateUser() {
++        String email = "email@email.com";
++        User user = new User("test2@test.com", "new name", Arrays.asList("role1", "roles2", "roles3"));
++        when(userDao.findUser(email)).thenReturn(user);
++        Response response = userResource.updateUser(email, user);
++
++        ArgumentCaptor<User> argument = ArgumentCaptor.forClass(User.class);
++        verify(userDao).updateUser(argument.capture());
++
++        User updatedUser = argument.getValue();
++        assert user.getName().equals(updatedUser.getName());
++        assert user.getEmail().equals(email);
++        assert user.getRoles().equals(updatedUser.getRoles());
++
++        assert HttpStatus.OK.value() == response.getStatus();
++        User outputUser = (User) response.getEntity();
++        assert updatedUser == outputUser;
++    }
++
++    @Test
++    public void addUserFound() {
++        User user = new User("test2@test.com", "new name", Arrays.asList("role1", "roles2", "roles3"));
++        when(userDao.findUser(user.getEmail())).thenReturn(user);
++        Response response = userResource.addUser(user);
++        assert HttpStatus.CONFLICT.value() == response.getStatus();
++        assert response.getEntity() == null;
++    }
++
++    @Test
++    public void addUser() {
++        User user = new User("test2@test.com", "new name", Arrays.asList("role1", "roles2", "roles3"));
++        when(userDao.findUser(user.getEmail())).thenReturn(null);
++
++        UriBuilder uriBuilder = new JerseyUriBuilder();
++        when(uriInfo.getAbsolutePathBuilder()).thenReturn(uriBuilder);
++        Response response = userResource.addUser(user);
++
++        ArgumentCaptor<User> argument = ArgumentCaptor.forClass(User.class);
++        verify(userDao).saveUser(argument.capture());
++
++        User addedUser = argument.getValue();
++        assert user.getName().equals(addedUser.getName());
++        assert user.getEmail().equals(addedUser.getEmail());
++        assert user.getRoles().equals(addedUser.getRoles());
++
++        assert HttpStatus.CREATED.value() == response.getStatus();
++        assert 1 == response.getHeaders().size();
++        assert uriBuilder.toString().equals(response.getHeaderString("Location"));
++        User outputUser = argument.getValue();
++        assert addedUser == outputUser;
+     }
+ }
+-- 
+1.7.11.1
+
+From 5243afb903102199424cc58e0cb65466a6249532 Mon Sep 17 00:00:00 2001
+From: Hieu Bui <hbui@gravie.com>
+Date: Tue, 23 Feb 2016 18:59:35 -0700
+Subject: [PATCH] add integration tests use junit assertion instead of groovy
+ style assertion
+
+---
+ pom.xml                                            |   5 +
+ .../h2rd/refactoring/web/rest/UserResourceV2.java  |   4 +-
+ .../integration/BaseEndpointIntegrationTest.java   |  30 ++++++
+ .../integration/UserIntegrationTest.java           |  43 --------
+ .../integration/UserResourceIntegrationTest.java   | 110 +++++++++++++++++++++
+ .../unit/MemoryBackedUserDaoUnitTest.java          |  32 +++---
+ .../refactoring/unit/UserResourceUnitTest.java     |  13 +--
+ .../refactoring/unit/UserResourceV2UnitTest.java   |  69 ++++++-------
+ 8 files changed, 206 insertions(+), 100 deletions(-)
+ create mode 100644 src/test/java/test/com/h2rd/refactoring/integration/BaseEndpointIntegrationTest.java
+ delete mode 100644 src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
+ create mode 100644 src/test/java/test/com/h2rd/refactoring/integration/UserResourceIntegrationTest.java
+
+diff --git a/pom.xml b/pom.xml
+index 378a92b..8606963 100755
+--- a/pom.xml
++++ b/pom.xml
+@@ -128,6 +128,11 @@
+       <version>${jersey.version}</version>
+     </dependency>
+     <dependency>
++      <groupId>org.glassfish.jersey.test-framework.providers</groupId>
++      <artifactId>jersey-test-framework-provider-grizzly2</artifactId>
++      <version>2.13</version>
++    </dependency>
++    <dependency>
+       <groupId>junit</groupId>
+       <artifactId>junit</artifactId>
+       <version>${junit.version}</version>
+diff --git a/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+index 194e3df..871c0f8 100644
+--- a/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
++++ b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+@@ -53,7 +53,7 @@ public class UserResourceV2 {
+         user.setEmail(email);
+         user.setRoles(roles);
+         userDao.saveUser(user);
+-        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getName()).build();
++        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getEmail()).build();
+         return Response.created(uri).entity(user).build();
+     }
+ 
+@@ -68,7 +68,7 @@ public class UserResourceV2 {
+             return Response.status(Response.Status.CONFLICT).build();
+         }
+         userDao.saveUser(user);
+-        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getName()).build();
++        URI uri = uriInfo.getAbsolutePathBuilder().path(user.getEmail()).build();
+         return Response.created(uri).entity(user).build();
+     }
+ 
+diff --git a/src/test/java/test/com/h2rd/refactoring/integration/BaseEndpointIntegrationTest.java b/src/test/java/test/com/h2rd/refactoring/integration/BaseEndpointIntegrationTest.java
+new file mode 100644
+index 0000000..64c6d47
+--- /dev/null
++++ b/src/test/java/test/com/h2rd/refactoring/integration/BaseEndpointIntegrationTest.java
+@@ -0,0 +1,30 @@
++package test.com.h2rd.refactoring.integration;
++
++import com.h2rd.refactoring.web.MyApplication;
++import org.glassfish.jersey.server.ResourceConfig;
++import org.glassfish.jersey.servlet.ServletContainer;
++import org.glassfish.jersey.test.DeploymentContext;
++import org.glassfish.jersey.test.JerseyTest;
++import org.glassfish.jersey.test.ServletDeploymentContext;
++import org.glassfish.jersey.test.grizzly.GrizzlyWebTestContainerFactory;
++import org.glassfish.jersey.test.spi.TestContainerFactory;
++import org.springframework.web.context.ContextLoaderListener;
++
++public abstract class BaseEndpointIntegrationTest extends JerseyTest {
++
++    @Override
++    protected TestContainerFactory getTestContainerFactory() {
++        return new GrizzlyWebTestContainerFactory();
++    }
++
++    @Override
++    protected DeploymentContext configureDeployment() {
++        return ServletDeploymentContext
++                .forServlet(new ServletContainer(new ResourceConfig(new MyApplication())))
++                .addListener(ContextLoaderListener.class)
++                .contextParam("contextConfigLocation", "com.h2rd.refactoring.ApplicationConfiguration")
++                .contextParam("contextClass", "org.springframework.web.context.support.AnnotationConfigWebApplicationContext")
++                .build();
++    }
++
++}
+diff --git a/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java b/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
+deleted file mode 100644
+index e76dfdd..0000000
+--- a/src/test/java/test/com/h2rd/refactoring/integration/UserIntegrationTest.java
++++ /dev/null
+@@ -1,43 +0,0 @@
+-package test.com.h2rd.refactoring.integration;
+-
+-import java.util.ArrayList;
+-
+-import javax.ws.rs.core.Response;
+-
+-import junit.framework.Assert;
+-
+-import org.junit.Test;
+-
+-import com.h2rd.refactoring.usermanagement.User;
+-import com.h2rd.refactoring.web.rest.UserResource;
+-
+-public class UserIntegrationTest {
+-	
+-	@Test
+-	public void createUserTest() {
+-		UserResource userResource = new UserResource();
+-		
+-		User integration = new User();
+-        integration.setName("integration");
+-        integration.setEmail("initial@integration.com");
+-        integration.setRoles(new ArrayList<String>());
+-        
+-        Response response = userResource.addUser(integration.getName(), integration.getEmail(), integration.getRoles());
+-        Assert.assertEquals(200, response.getStatus());
+-	}
+-
+-	@Test
+-	public void updateUserTest() {
+-		UserResource userResource = new UserResource();
+-		
+-		createUserTest();
+-        
+-        User updated = new User();
+-        updated.setName("integration");
+-        updated.setEmail("updated@integration.com");
+-        updated.setRoles(new ArrayList<String>());
+-        
+-        Response response = userResource.updateUser(updated.getName(), updated.getEmail(), updated.getRoles());
+-        Assert.assertEquals(200, response.getStatus());
+-	}
+-}
+diff --git a/src/test/java/test/com/h2rd/refactoring/integration/UserResourceIntegrationTest.java b/src/test/java/test/com/h2rd/refactoring/integration/UserResourceIntegrationTest.java
+new file mode 100644
+index 0000000..19902bb
+--- /dev/null
++++ b/src/test/java/test/com/h2rd/refactoring/integration/UserResourceIntegrationTest.java
+@@ -0,0 +1,110 @@
++package test.com.h2rd.refactoring.integration;
++
++import static org.junit.Assert.assertEquals;
++import com.h2rd.refactoring.usermanagement.User;
++import org.junit.Test;
++import org.springframework.http.HttpStatus;
++
++import javax.ws.rs.client.Entity;
++import javax.ws.rs.core.GenericType;
++import javax.ws.rs.core.MediaType;
++import javax.ws.rs.core.Response;
++import java.net.URL;
++import java.net.URLDecoder;
++import java.util.Arrays;
++import java.util.List;
++
++public class UserResourceIntegrationTest extends BaseEndpointIntegrationTest {
++    static final String END_POINT = "/v2/users";
++
++    @Test
++    public void getUsers() throws Exception {
++        User user = new User();
++        user.setEmail("user2@mail.com");
++        user.setName("Jane Doe");
++        user.setRoles(Arrays.asList("supertester", "superdeveloper"));
++        Entity<User> userEntity = Entity.entity(user, MediaType.APPLICATION_JSON);
++
++        Response response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(END_POINT + "/" + user.getEmail(), URLDecoder.decode(new URL(response.getHeaderString("Location")).getPath(), "utf-8"));
++        User createdUser = response.readEntity(User.class);
++        assertEquals(user.getEmail(), createdUser.getEmail());
++        assertEquals(user.getName(), createdUser.getName());
++        assertEquals(user.getRoles(), createdUser.getRoles());
++
++        response = target("v2/users").request().accept(MediaType.APPLICATION_JSON).get();
++        List<User> users = response.readEntity(new GenericType<List<User>>() {
++        });
++        assertEquals(1, users.size());
++        User foundUser = users.get(0);
++        assertEquals(user.getEmail(), foundUser.getEmail());
++        assertEquals(user.getName(), foundUser.getName());
++        assertEquals(user.getRoles(), foundUser.getRoles());
++        response.close();
++    }
++
++    @Test
++    public void addUserInvalidEmailInput() {
++        User user = new User();
++        user.setName("Jane Doe");
++        user.setRoles(Arrays.asList("supertester", "superdeveloper"));
++        Entity<User> userEntity = Entity.entity(user, MediaType.APPLICATION_JSON);
++
++        //missing email
++        user.setEmail(null);
++        Response response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++
++        //empty email
++        user.setEmail("");
++        response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++
++
++        //bad email
++        user.setEmail("a@");
++        response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++
++        //bad email
++        user.setEmail("a@a.");
++        response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++    }
++
++    @Test
++    public void addUserInvalidNameInput() {
++        User user = new User();
++        user.setEmail("user2@mail.com");
++        user.setRoles(Arrays.asList("supertester", "superdeveloper"));
++        Entity<User> userEntity = Entity.entity(user, MediaType.APPLICATION_JSON);
++
++        //missing name
++        user.setName(null);
++        Response response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++
++        //empty name
++        user.setName("");
++        response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++    }
++
++    @Test
++    public void addUserInvalidRolesInput() {
++        User user = new User();
++        user.setEmail("user2@mail.com");
++        user.setName("Jane Doe");
++        Entity<User> userEntity = Entity.entity(user, MediaType.APPLICATION_JSON);
++
++        //empty roles
++        user.getRoles().clear();
++        Response response = target(END_POINT).request().accept(MediaType.APPLICATION_JSON).post(userEntity);
++        assertEquals(HttpStatus.BAD_REQUEST.value(), response.getStatus());
++    }
++
++    //TODO
++    //add more tests here
++    //i just run out of time
++
++}
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
+index f090527..ac9ef9a 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/MemoryBackedUserDaoUnitTest.java
+@@ -1,7 +1,9 @@
+ package test.com.h2rd.refactoring.unit;
+ 
+-import com.h2rd.refactoring.usermanagement.dao.MemoryBackedUserDao;
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertNull;
+ import com.h2rd.refactoring.usermanagement.User;
++import com.h2rd.refactoring.usermanagement.dao.MemoryBackedUserDao;
+ import org.junit.Test;
+ 
+ import java.util.ArrayList;
+@@ -56,7 +58,7 @@ public class MemoryBackedUserDaoUnitTest {
+         user.setEmail("fake@email.com");
+         user.setRoles(Arrays.asList("admin", "master"));
+         userDao.deleteUser(user);
+-        assert userDao.getUsers().size() == 0;
++        assertEquals(0, userDao.getUsers().size());
+         userDao.deleteUser(user);
+     }
+ 
+@@ -71,8 +73,8 @@ public class MemoryBackedUserDaoUnitTest {
+         user.setEmail(email);
+         user.setRoles(Arrays.asList(role1, role2));
+         userDao.saveUser(user);
+-        assert userDao.findUser(email).equals(user);
+-        assert userDao.findUser("nonexisting") == null;
++        assertEquals(user, userDao.findUser(email));
++        assertNull("expecting null", userDao.findUser("nonexisting"));
+     }
+ 
+     @Test
+@@ -86,8 +88,8 @@ public class MemoryBackedUserDaoUnitTest {
+         user.setEmail(email);
+         user.setRoles(Arrays.asList(role1, role2));
+         userDao.saveUser(user);
+-        assert userDao.findUserByName(name).equals(user);
+-        assert userDao.findUserByName("nonexisting") == null;
++        assertEquals(user, userDao.findUserByName(name));
++        assertNull("expecting null", userDao.findUserByName("nonexisting"));
+     }
+ 
+     @Test
+@@ -109,24 +111,22 @@ public class MemoryBackedUserDaoUnitTest {
+         String newRole3 = "newrole3";
+         User newUser = new User(email, newName, Arrays.asList(newRole1, newRole2, newRole3));
+         userDao.updateUser(newUser);
+-        assert 1 == userDao.getUsers().size();
++        assertEquals(1, userDao.getUsers().size());
+         List<User> users = new ArrayList(userDao.getUsers());
+         assert users.size() == 1;
+         User foundUser = users.get(0);
+-        assert newUser.getEmail().equals(foundUser.getEmail());
+-        assert newUser.getName().equals(foundUser.getName());
+-        assert newUser.getRoles().equals(foundUser.getRoles());
++        assertEquals(newUser.getEmail(), foundUser.getEmail());
++        assertEquals(newUser.getName(), foundUser.getName());
++        assertEquals(newUser.getRoles(), foundUser.getRoles());
+ 
+         User nonExistingNewUser = new User("nonexistingemail", newName, Arrays.asList(newRole1, newRole2, newRole3));
+         userDao.updateUser(nonExistingNewUser);
+ 
+         users = new ArrayList(userDao.getUsers());
+-        assert users.size() == 1;
++        assertEquals(1, users.size());
+         foundUser = users.get(0);
+-        assert newUser.getEmail().equals(foundUser.getEmail());
+-        assert newUser.getName().equals(foundUser.getName());
+-        assert newUser.getRoles().equals(foundUser.getRoles());
+-
+-
++        assertEquals(newUser.getEmail(), foundUser.getEmail());
++        assertEquals(newUser.getName(), foundUser.getName());
++        assertEquals(newUser.getRoles(), foundUser.getRoles());
+     }
+ }
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+index df3fc5e..a5fe559 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceUnitTest.java
+@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
+ import org.mockito.Mock;
+ import org.mockito.runners.MockitoJUnitRunner;
+ import org.springframework.http.HttpStatus;
++import static org.junit.Assert.assertEquals;
+ 
+ import javax.ws.rs.core.Response;
+ import java.util.ArrayList;
+@@ -36,16 +37,16 @@ public class UserResourceUnitTest {
+         Response response = userResource.getUsers();
+         assert HttpStatus.OK.value() == response.getStatus();
+         List<User> outputUsers = new ArrayList((Set<User>) response.getEntity());
+-        assert outputUsers.size() == 1;
+-        assert user.getName().equals(outputUsers.get(0).getName());
+-        assert user.getEmail().equals(outputUsers.get(0).getEmail());
+-        assert user.getRoles().equals(outputUsers.get(0).getRoles());
++        assertEquals(1, outputUsers.size());
++        assertEquals(user.getName(), outputUsers.get(0).getName());
++        assertEquals(user.getEmail(), outputUsers.get(0).getEmail());
++        assertEquals(user.getRoles(), outputUsers.get(0).getRoles());
+ 
+         reset(userDao);
+         when(userDao.getUsers()).thenReturn(new HashSet<User>());
+         response = userResource.getUsers();
+-        assert HttpStatus.OK.value() == response.getStatus();
++        assertEquals(HttpStatus.OK.value(), response.getStatus());
+         outputUsers = new ArrayList((Set<User>) response.getEntity());
+-        assert outputUsers.size() == 0;
++        assertEquals(0, outputUsers.size());
+     }
+ }
+diff --git a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+index 831b8bf..7ab686c 100644
+--- a/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
++++ b/src/test/java/test/com/h2rd/refactoring/unit/UserResourceV2UnitTest.java
+@@ -1,5 +1,8 @@
+ package test.com.h2rd.refactoring.unit;
+ 
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertNull;
++import static org.junit.Assert.assertSame;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.when;
+ import com.h2rd.refactoring.usermanagement.User;
+@@ -41,20 +44,20 @@ public class UserResourceV2UnitTest {
+         Set<User> users = new HashSet<User>(Arrays.asList(user));
+         when(userDao.getUsers()).thenReturn(users);
+         Response response = userResource.getUsers();
+-        assert HttpStatus.OK.value() == response.getStatus();
++        assertEquals(HttpStatus.OK.value(), response.getStatus());
+         List<User> outputUsers = new ArrayList((Set<User>) response.getEntity());
+-        assert outputUsers.size() == 1;
+-        assert user.getName().equals(outputUsers.get(0).getName());
+-        assert user.getEmail().equals(outputUsers.get(0).getEmail());
+-        assert user.getRoles().equals(outputUsers.get(0).getRoles());
++        assertEquals(1, outputUsers.size());
++        assertEquals(user.getName(), outputUsers.get(0).getName());
++        assertEquals(user.getEmail(), outputUsers.get(0).getEmail());
++        assertEquals(user.getRoles(), outputUsers.get(0).getRoles());
+     }
+ 
+     @Test
+     public void getUsersNoUsersFound() {
+         when(userDao.getUsers()).thenReturn(new HashSet<User>());
+         Response response = userResource.getUsers();
+-        assert HttpStatus.NO_CONTENT.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.NO_CONTENT.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -62,8 +65,8 @@ public class UserResourceV2UnitTest {
+         String email = "email@email.com";
+         when(userDao.findUser(email)).thenReturn(null);
+         Response response = userResource.deleteUser(email);
+-        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.NOT_FOUND.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -73,8 +76,8 @@ public class UserResourceV2UnitTest {
+         when(userDao.findUser(email)).thenReturn(user);
+         Response response = userResource.deleteUser(email);
+         verify(userDao).deleteUser(user);
+-        assert HttpStatus.NO_CONTENT.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.NO_CONTENT.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -83,11 +86,11 @@ public class UserResourceV2UnitTest {
+         User user = new User("test@test.com", "test", Arrays.asList("role1"));
+         when(userDao.findUser(email)).thenReturn(user);
+         Response response = userResource.findUser(email);
+-        assert HttpStatus.OK.value() == response.getStatus();
++        assertEquals(HttpStatus.OK.value(), response.getStatus());
+         User outputUser = (User) response.getEntity();
+-        outputUser.getName().equals(user.getName());
+-        outputUser.getEmail().equals(user.getEmail());
+-        outputUser.getRoles().equals(user.getRoles());
++        assertEquals(user.getName(), outputUser.getName());
++        assertEquals(user.getEmail(), outputUser.getEmail());
++        assertEquals(user.getRoles(), outputUser.getRoles());
+     }
+ 
+     @Test
+@@ -95,8 +98,8 @@ public class UserResourceV2UnitTest {
+         String email = "email@email.com";
+         when(userDao.findUser(email)).thenReturn(null);
+         Response response = userResource.findUser(email);
+-        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.NOT_FOUND.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -105,8 +108,8 @@ public class UserResourceV2UnitTest {
+         User user = new User("test@test.com", "test", Arrays.asList("role1"));
+         when(userDao.findUser(email)).thenReturn(null);
+         Response response = userResource.updateUser(email, user);
+-        assert HttpStatus.NOT_FOUND.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.NOT_FOUND.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -120,13 +123,13 @@ public class UserResourceV2UnitTest {
+         verify(userDao).updateUser(argument.capture());
+ 
+         User updatedUser = argument.getValue();
+-        assert user.getName().equals(updatedUser.getName());
+-        assert user.getEmail().equals(email);
+-        assert user.getRoles().equals(updatedUser.getRoles());
++        assertEquals(user.getName(), updatedUser.getName());
++        assertEquals(user.getEmail(), updatedUser.getEmail());
++        assertEquals(user.getRoles(), updatedUser.getRoles());
+ 
+-        assert HttpStatus.OK.value() == response.getStatus();
++        assertEquals(HttpStatus.OK.value(), response.getStatus());
+         User outputUser = (User) response.getEntity();
+-        assert updatedUser == outputUser;
++        assertSame(updatedUser, outputUser);
+     }
+ 
+     @Test
+@@ -134,8 +137,8 @@ public class UserResourceV2UnitTest {
+         User user = new User("test2@test.com", "new name", Arrays.asList("role1", "roles2", "roles3"));
+         when(userDao.findUser(user.getEmail())).thenReturn(user);
+         Response response = userResource.addUser(user);
+-        assert HttpStatus.CONFLICT.value() == response.getStatus();
+-        assert response.getEntity() == null;
++        assertEquals(HttpStatus.CONFLICT.value(), response.getStatus());
++        assertNull("expecting null", response.getEntity());
+     }
+ 
+     @Test
+@@ -151,14 +154,14 @@ public class UserResourceV2UnitTest {
+         verify(userDao).saveUser(argument.capture());
+ 
+         User addedUser = argument.getValue();
+-        assert user.getName().equals(addedUser.getName());
+-        assert user.getEmail().equals(addedUser.getEmail());
+-        assert user.getRoles().equals(addedUser.getRoles());
++        assertEquals(user.getName(), addedUser.getName());
++        assertEquals(user.getEmail(), addedUser.getEmail());
++        assertEquals(user.getRoles(), addedUser.getRoles());
+ 
+-        assert HttpStatus.CREATED.value() == response.getStatus();
+-        assert 1 == response.getHeaders().size();
+-        assert uriBuilder.toString().equals(response.getHeaderString("Location"));
++        assertEquals(HttpStatus.CREATED.value(), response.getStatus());
++        assertEquals(1, response.getHeaders().size());
++        assertEquals(uriBuilder.toString(), response.getHeaderString("Location"));
+         User outputUser = argument.getValue();
+-        assert addedUser == outputUser;
++        assertSame(addedUser, outputUser);
+     }
+ }
+-- 
+1.7.11.1
+
+From 2f0cb0eff087892809d2d3397f6a533e172a5ae7 Mon Sep 17 00:00:00 2001
+From: Hieu Bui <hbui@gravie.com>
+Date: Tue, 23 Feb 2016 19:01:42 -0700
+Subject: [PATCH] hide deprecated endpoints
+
+---
+ .../java/com/h2rd/refactoring/web/rest/UserResourceV2.java | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+index 871c0f8..da75e37 100644
+--- a/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
++++ b/src/main/java/com/h2rd/refactoring/web/rest/UserResourceV2.java
+@@ -37,9 +37,9 @@ public class UserResourceV2 {
+ 
+     //just for testing
+     @Deprecated
+-    @POST
+-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+-    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++//    @POST
++//    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
++//    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
+     public Response addUserFormEncoded(@FormParam("name") String name,
+                                        @FormParam("email") String email,
+                                        @FormParam("role") List<String> roles) {
+@@ -75,10 +75,10 @@ public class UserResourceV2 {
+ 
+     //just for testing
+     @Deprecated
+-    @PUT
+-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+-    @Path("{email}")
+-    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
++//    @PUT
++//    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
++//    @Path("{email}")
++//    @Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
+     public Response updateUserFormEncoded(@PathParam("name") String name,
+                                           @FormParam("email") String email,
+                                           @FormParam("role") List<String> roles) {
+-- 
+1.7.11.1
+
